@@ -33,7 +33,16 @@ function Set-ArmVariable {
     }
 }
 
-function CreateStorageAccountBlobContainerResourceProperties($armResource, $templateContentConnections, $fileType) {
+function CreateStorageAccountBlobContainerResourceProperties($armResource, $templateContentConnections, $fileType, $instructionParameters = $null) {
+    $isManagedServicePrincipal = $armResource.properties.auth.type -eq 'ManagedServicePrincipal'
+    $eventGridUseManagedIdentity = $false
+    if ($armResource.PSObject.Properties.Name -contains 'eventGridUseManagedIdentity') {
+        if ($armResource.eventGridUseManagedIdentity -isnot [bool]) {
+            throw 'eventGridUseManagedIdentity must be a boolean.'
+        }
+        $eventGridUseManagedIdentity = $armResource.eventGridUseManagedIdentity
+        $armResource.PSObject.Properties.Remove('eventGridUseManagedIdentity')
+    }
     try {
         $kindType = 'StorageAccountBlobContainer'
         $eventGridAdvancedFilters = $null
@@ -52,6 +61,10 @@ function CreateStorageAccountBlobContainerResourceProperties($armResource, $temp
 
         ProcessPropertyPlaceholders -armResource $armResource -templateContentConnections $templateContentConnections -isOnlyObjectCheck $true -propertyObject $armResource.properties -propertyName 'dcrConfig' -isInnerObject $false -innerObjectName $null -kindType $kindType -isSecret $true -isRequired $true -fileType $fileType -minLength 3 -isCreateArray $false
 
+        if ($isManagedServicePrincipal) {
+            $armResource.properties.connectorDefinitionName = "[[parameters('connectorDefinitionName')]"
+        }
+
         $hasDependsOn = [bool]($armResource.PSobject.Properties.name -match "dependsOn")
         if (!$hasDependsOn) {
             $armResource | Add-Member -NotePropertyName "dependsOn" -NotePropertyValue @( "[[variables('nestedDeploymentId')]")
@@ -65,17 +78,33 @@ function CreateStorageAccountBlobContainerResourceProperties($armResource, $temp
             $templateContentConnections.properties.mainTemplate | Add-Member -NotePropertyName "variables" -NotePropertyValue @{}
         }
 
-        Set-ResourceVariables 
-        $templateContentConnections.properties.mainTemplate.resources += Get-StorageAccountDeploymentTemplate -eventGridAdvancedFilters $eventGridAdvancedFilters
+        Set-ResourceVariables -eventGridUseManagedIdentity $eventGridUseManagedIdentity
+        if ($eventGridUseManagedIdentity) {
+            . (Join-Path $PSScriptRoot 'eventGridManagedIdentityDeploymentTemplate.ps1')
+            # Keep UI-derived parameters in sync so the final merge cannot restore a required folder.
+            foreach ($parameterSet in @($templateContentConnections.properties.mainTemplate.parameters, $instructionParameters)) {
+                if ($null -eq $parameterSet) { continue }
+                $parameterSet | Add-Member -NotePropertyName 'eventGridRbacMode' -NotePropertyValue (Get-EventGridRbacModeParameter -IncludeDefault) -Force
+                $parameterSet | Add-Member -NotePropertyName 'blobFolderName' -NotePropertyValue ([PSCustomObject]@{
+                    type = 'string'
+                    defaultValue = ''
+                }) -Force
+            }
+        }
+        $templateContentConnections.properties.mainTemplate.resources += Get-StorageAccountDeploymentTemplate -eventGridAdvancedFilters $eventGridAdvancedFilters -eventGridUseManagedIdentity $eventGridUseManagedIdentity -resourceVariables $templateContentConnections.properties.mainTemplate.variables -isManagedServicePrincipal $isManagedServicePrincipal
     }
     catch {
+        if ($eventGridUseManagedIdentity -or $isManagedServicePrincipal) { throw }
         Write-Host "Error in CreateStorageAccountBlobContainerResourceProperties function. Error Details $_"
     }
 }
 
 function Get-StorageAccountDeploymentTemplate {
     param (
-        [object]$eventGridAdvancedFilters = $null
+        [object]$eventGridAdvancedFilters = $null,
+        [bool]$eventGridUseManagedIdentity = $false,
+        [System.Collections.IDictionary]$resourceVariables = $null,
+        [bool]$isManagedServicePrincipal = $false
     )
 
         $storageDeploymentTemplate = [ordered]@{
@@ -174,6 +203,13 @@ function Get-StorageAccountDeploymentTemplate {
             resourceGroup  = "[[parameters('StorageAccountResourceGroupName')]"
         }
 
+        if ($isManagedServicePrincipal) {
+            $storageDeploymentTemplate.properties.template.resources = @(
+                $storageDeploymentTemplate.properties.template.resources |
+                    Where-Object { $_.type -notlike '*/providers/roleAssignments' }
+            )
+        }
+
         $hasAdvancedFilters = $false
         if ($null -ne $eventGridAdvancedFilters) {
             if ($eventGridAdvancedFilters -is [System.Array]) {
@@ -194,10 +230,106 @@ function Get-StorageAccountDeploymentTemplate {
             }
         }
 
+        if ($eventGridUseManagedIdentity) {
+            if ($null -eq $resourceVariables) {
+                throw 'Storage variables are required for managed-identity Event Grid delivery.'
+            }
+            . (Join-Path $PSScriptRoot 'eventGridManagedIdentityDeploymentTemplate.ps1')
+            $storageDeploymentTemplate.apiVersion = '2025-04-01'
+            # An outer-evaluated template would evaluate the child deployments' parameter expressions too early.
+            $storageDeploymentTemplate.properties['expressionEvaluationOptions'] = @{ scope = 'inner' }
+            $storageDeploymentTemplate.properties['parameters'] = [ordered]@{}
+            $storageDeploymentTemplate.properties.template['parameters'] = [ordered]@{}
+            foreach ($parameterName in @('StorageAccountLocation', 'blobFolderName', 'eventGridRbacMode')) {
+                $storageDeploymentTemplate.properties.parameters[$parameterName] = @{
+                    value = "[[parameters('$parameterName')]"
+                }
+                $storageDeploymentTemplate.properties.template.parameters[$parameterName] = @{ type = 'string' }
+            }
+            $storageDeploymentTemplate.properties.template.parameters['blobFolderName']['defaultValue'] = ''
+            $storageDeploymentTemplate.properties.template.parameters['eventGridRbacMode'] = Get-EventGridRbacModeParameter
+            # Snapshot and validate the existing topic before any nested deployment updates it.
+            $storageDeploymentTemplate.properties.parameters['existingSystemTopic'] = @{
+                value = "[[if(empty(parameters('EGSystemTopicName')), createObject(), reference(variables('EGTopicResourceId'), '2025-02-15', 'Full'))]"
+            }
+            $storageDeploymentTemplate.properties.template.parameters['existingSystemTopic'] = @{ type = 'object' }
+            $storageDeploymentTemplate.properties.parameters['existingSystemTopicMatchesStorageAccount'] = @{
+                value = "[[if(empty(parameters('EGSystemTopicName')), true(), equals(toLower(reference(variables('EGTopicResourceId'), '2025-02-15', 'Full').properties.source), toLower(variables('storageAccountId'))))]"
+            }
+            $storageDeploymentTemplate.properties.template.parameters['existingSystemTopicMatchesStorageAccount'] = @{
+                type = 'bool'
+                allowedValues = @($true)
+                metadata = @{
+                    description = 'The existing Event Grid system topic must use the selected storage account as its source.'
+                }
+            }
+            $storageDeploymentTemplate.properties.template['variables'] = [ordered]@{}
+            $storageVariableNames = @(
+                'storageAccountName', 'storageAccountId', 'blobContainerName',
+                'queueName', 'dlqName', 'EGSystemTopicName', 'EGTopicResourceId', 'EgSubscriptionName'
+            )
+            if (-not $isManagedServicePrincipal) {
+                $storageDeploymentTemplate.properties.parameters['principalId'] = @{ value = "[[parameters('principalId')]" }
+                $storageDeploymentTemplate.properties.template.parameters['principalId'] = @{ type = 'securestring' }
+                $storageVariableNames += @(
+                    'storageBlobContributorRoleId', 'storageQueueContributorRoleId',
+                    'blobRaGuid', 'notificationQueueRaGuid', 'dlqRaGuid', 'dlqResourceId'
+                )
+            }
+            foreach ($name in $storageVariableNames) {
+                if (-not $resourceVariables.Contains($name)) {
+                    throw "Missing storage variable '$name' for managed-identity Event Grid delivery."
+                }
+                $storageDeploymentTemplate.properties.parameters[$name] = @{ value = "[[variables('$name')]" }
+                $storageDeploymentTemplate.properties.template.parameters[$name] = @{ type = 'string' }
+                $storageDeploymentTemplate.properties.template.variables[$name] = "[[parameters('$name')]"
+            }
+            $storageDeploymentTemplate.properties.template.variables['notificationQueueResourceId'] = "[[resourceId('Microsoft.Storage/storageAccounts/queueServices/queues', variables('storageAccountName'), 'default', variables('queueName'))]"
+            $storageDeploymentTemplate.properties.template.variables['eventGridTopicDeploymentName'] = "[[concat('PrepareEventGridTopic-', uniqueString(variables('EGTopicResourceId')))]"
+            $storageDeploymentTemplate.properties.template.variables['eventGridTopicDeploymentId'] = "[[resourceId('Microsoft.Resources/deployments', variables('eventGridTopicDeploymentName'))]"
+            $storageDeploymentTemplate.properties.template.variables['eventGridQueueSenderDeploymentName'] = "[[concat('EventGridQueueSender-', uniqueString(variables('EGTopicResourceId'), variables('queueName')))]"
+            $storageDeploymentTemplate.properties.template.variables['eventGridQueueSenderDeploymentId'] = "[[resourceId('Microsoft.Resources/deployments', variables('eventGridQueueSenderDeploymentName'))]"
+            $eventSubscriptionResource = $storageDeploymentTemplate.properties.template.resources |
+                Where-Object { $_.type -eq 'Microsoft.EventGrid/systemTopics/eventSubscriptions' } |
+                Select-Object -First 1
+            $eventSubscriptionResource.apiVersion = '2025-02-15'
+            $destination = $eventSubscriptionResource.properties.destination
+            $destination.properties.resourceId = "[[variables('storageAccountId')]"
+            $eventSubscriptionResource.properties.filter.subjectBeginsWith = "[[format('{0}/{1}/blobs/{2}', '/blobServices/default/containers', variables('blobContainerName'), if(empty(parameters('blobFolderName')), '', concat(parameters('blobFolderName'),'/')))]"
+            $eventSubscriptionResource.properties = [ordered]@{
+                deliveryWithResourceIdentity = [ordered]@{
+                    identity = @{ type = 'SystemAssigned' }
+                    destination = $destination
+                }
+                filter = $eventSubscriptionResource.properties.filter
+                eventDeliverySchema = 'EventGridSchema'
+            }
+            $eventSubscriptionResource.dependsOn = @(
+                "[[if(equals(parameters('eventGridRbacMode'), 'CreateRoleAssignment'), variables('eventGridQueueSenderDeploymentId'), variables('eventGridTopicDeploymentId'))]",
+                "[[variables('notificationQueueResourceId')]"
+            )
+            $storageDeploymentTemplate.properties.template.resources = @(
+                foreach ($resource in $storageDeploymentTemplate.properties.template.resources) {
+                    if ($resource.type -eq 'Microsoft.EventGrid/systemTopics') {
+                        Get-EventGridManagedIdentityDeployments
+                    } else {
+                        if ($resource.type -eq 'Microsoft.Storage/storageAccounts/queueServices/queues') {
+                            $resource.apiVersion = '2025-06-01'
+                        }
+                        $resource
+                    }
+                }
+            )
+        }
+
         return $storageDeploymentTemplate
 }
 
 function Set-ResourceVariables {
+    param(
+        [bool]$eventGridUseManagedIdentity = $false
+    )
+
     try {
         # Initialize variables hashtable if not already done
         if (-not $variables) { $variables = [ordered]@{} }
@@ -211,7 +343,6 @@ function Set-ResourceVariables {
         $variables["queueName"] = "[[concat(variables('connectorName'), '-notification')]"
         $variables["dlqName"] = "[[concat(variables('connectorName'), '-dlq')]"
         $variables["storageAccountId"] = "[[resourceId(parameters('StorageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
-        $variables["blobContainerResourceId"] = "[[resourceId(parameters('StorageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts/blobServices/containers', variables('storageAccountName'), 'default', variables('blobContainerName'))]"
         $variables["notificationQueueResourceId"] = "[[resourceId(parameters('StorageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts/queueServices/queues', variables('storageAccountName'), 'default', variables('queueName'))]"
         $variables["dlqResourceId"] = "[[resourceId(parameters('StorageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts/queueServices/queues', variables('storageAccountName'), 'default', variables('dlqName'))]"
         $variables["EGSystemTopicDefaultName"] = "[[format('eg-system-topic-{0}-{1}', variables('connectorName'), parameters('innerWorkspace'))]"
@@ -221,14 +352,23 @@ function Set-ResourceVariables {
         $variables["EgSubscriptionResourceId"] = "[[resourceId(parameters('StorageAccountResourceGroupName'), 'Microsoft.EventGrid/systemTopics/eventSubscriptions', variables('EGSystemTopicName'), variables('EgSubscriptionName'))]"
         $variables["storageBlobContributorRoleId"] = "[[subscriptionResourceId(parameters('StorageAccountSubscription'), 'Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]"
         $variables["storageQueueContributorRoleId"] = "[[subscriptionResourceId(parameters('StorageAccountSubscription'), 'Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')]"
-        $variables["blobRaGuid"] = "[[guid(toLower(variables('blobContainerResourceId')), toLower(parameters('principalId')), toLower(variables('storageBlobContributorRoleId')))]"
-        $variables["notificationQueueRaGuid"] = "[[guid(toLower(variables('notificationQueueResourceId')), toLower(parameters('principalId')), toLower(variables('storageQueueContributorRoleId')))]"
-        $variables["dlqRaGuid"] = "[[guid(toLower(variables('dlqResourceId')), toLower(parameters('principalId')), toLower(variables('storageQueueContributorRoleId')))]"
+        $variables["blobRaGuid"] = "[[guid(variables('storageAccountName'), variables('blobContainerName'))]"
+        $variables["notificationQueueRaGuid"] = "[[guid(variables('storageAccountName'), variables('queueName'))]"
+        $variables["dlqRaGuid"] = "[[guid(variables('storageAccountName'), variables('dlqName'))]"
         $variables["blobRoleAssignmentResourceId"] = "[[resourceId(parameters('StorageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts/blobServices/containers/providers/roleAssignments', variables('storageAccountName'), 'default', variables('blobContainerName'), 'Microsoft.Authorization', variables('blobRaGuid'))]"
         $variables["notificationQueueRoleAssignmentResourceId"] = "[[resourceId(parameters('StorageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts/queueServices/queues/providers/roleAssignments', variables('storageAccountName'), 'default', variables('queueName'), 'Microsoft.Authorization', variables('notificationQueueRaGuid'))]"
         $variables["dlqRoleAssignmentResourceId"] = "[[resourceId(parameters('StorageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts/queueServices/queues/providers/roleAssignments', variables('storageAccountName'), 'default', variables('dlqName'), 'Microsoft.Authorization', variables('dlqRaGuid'))]"
         $variables["nestedDeploymentName"] = "CreateDataFlowResources"
         $variables["nestedDeploymentId"] = "[[resourceId(parameters('StorageAccountResourceGroupName'), 'Microsoft.Resources/deployments', variables('nestedDeploymentName'))]"
+
+        if ($eventGridUseManagedIdentity) {
+            $variables['storageAccountId'] = "[[resourceId(parameters('StorageAccountSubscription'), parameters('StorageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+            $variables['notificationQueueResourceId'] = "[[resourceId(parameters('StorageAccountSubscription'), parameters('StorageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts/queueServices/queues', variables('storageAccountName'), 'default', variables('queueName'))]"
+            $variables['dlqResourceId'] = "[[resourceId(parameters('StorageAccountSubscription'), parameters('StorageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts/queueServices/queues', variables('storageAccountName'), 'default', variables('dlqName'))]"
+            $variables['EGTopicResourceId'] = "[[resourceId(parameters('StorageAccountSubscription'), parameters('StorageAccountResourceGroupName'), 'Microsoft.EventGrid/systemTopics', variables('EGSystemTopicName'))]"
+            $variables['EgSubscriptionResourceId'] = "[[resourceId(parameters('StorageAccountSubscription'), parameters('StorageAccountResourceGroupName'), 'Microsoft.EventGrid/systemTopics/eventSubscriptions', variables('EGSystemTopicName'), variables('EgSubscriptionName'))]"
+            $variables['nestedDeploymentId'] = "[[resourceId(parameters('StorageAccountSubscription'), parameters('StorageAccountResourceGroupName'), 'Microsoft.Resources/deployments', variables('nestedDeploymentName'))]"
+        }
 
         $templateContentConnections.properties.mainTemplate.variables = $variables
     }

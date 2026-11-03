@@ -1,5 +1,8 @@
 | **Version** | **Date Modified (DD-MM-YYYY)** | **Change History**                            |
 |-------------|--------------------------------|-----------------------------------------------|
+| 3.2.2       | 25-10-2026                     | Added Defender XDR **Custom Detections** and **XDR Workbooks** for Sentinel to Defender XDR migration. |
+| 3.0.5       | 11-09-2026                     | Added  WebSessionEssentialsCustomParser to parse and normalize the tables used in dependent Security Content. |
+| 3.0.4       | 02-09-2026                     | Added Summarize Web Session Data using Log Ingestion API **Playbook** |
 | 3.0.3       | 06-06-2024                     | Updated Entity Mapping **Analytic Rule** CommandInURL.yaml 	                       |
 | 3.0.2       | 31-01-2024                     | Updated the solution to fix **Analytic Rules** deployment issue     |
 | 3.0.1       | 02-01-2024                     | Tagged for dependent Solutions for deployment |

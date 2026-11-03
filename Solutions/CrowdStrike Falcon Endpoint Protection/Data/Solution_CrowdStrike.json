@@ -12,7 +12,8 @@
   "Parsers": [
     "Parsers/CrowdStrikeFalconEventStream.yaml",
     "Parsers/CrowdstrikeReplicator.yaml",
-    "Parsers/CrowdStrikeReplicatorV2.yaml"
+    "Parsers/CrowdStrikeReplicatorV2.yaml",
+    "Parsers/CrowdStrikeApi.yaml"
   ],
   "Workbooks": [
     "Workbooks/CrowdStrikeFalconEndpointProtection.json"
@@ -20,6 +21,10 @@
   "Analytic Rules": [
     "Analytic Rules/CriticalOrHighSeverityDetectionsByUser.yaml",
     "Analytic Rules/CriticalSeverityDetection.yaml"
+  ],
+  "XDR Detections": [
+    "XDR Detections/CriticalOrHighSeverityDetectionsByUser.yaml",
+    "XDR Detections/CriticalSeverityDetection.yaml"
   ],
   "Playbooks": [
     "Playbooks/CrowdStrike_Base/azuredeploy.json",
@@ -30,8 +35,11 @@
     "azuresentinel.azure-sentinel-solution-commoneventformat"
   ],
   "BasePath": "C:\\GitHub\\Azure-Sentinel\\Solutions\\CrowdStrike Falcon Endpoint Protection",
-  "Version": "3.4.1",
   "Metadata": "SolutionMetadata.json",
   "TemplateSpec": true,
-  "Is1Pconnector": false
+  "Is1Pconnector": false,
+  "XDR Workbooks": [
+    "XDR Workbooks/CrowdStrikeFalconEndpointProtection.json"
+  ],
+  "Version": "3.4.4"
 }

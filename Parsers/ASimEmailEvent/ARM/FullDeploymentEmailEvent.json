@@ -1,0 +1,323 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "Workspace": {
+      "type": "string",
+      "metadata": {
+        "description": "The Microsoft Sentinel workspace into which the function will be deployed. Has to be in the selected Resource Group."
+      }
+    },
+    "WorkspaceRegion": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "The region of the selected workspace. The default value will use the Region selection above."
+      }
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedASimEmailEvent",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/ASimEmailEvent/ASimEmailEvent.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedASimEmailEventMicrosoftDefenderOffice365",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/ASimEmailEventMicrosoftDefenderOffice365/ASimEmailEventMicrosoftDefenderOffice365.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedASimEmailEventProofpointPODMailLog",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/ASimEmailEventProofpointPODMailLog/ASimEmailEventProofpointPODMailLog.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedASimEmailEventProofpointPODMessage",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/ASimEmailEventProofpointPODMessage/ASimEmailEventProofpointPODMessage.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedASimEmailEventProofpointTAPBlocked",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/ASimEmailEventProofpointTAPBlocked/ASimEmailEventProofpointTAPBlocked.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedASimEmailEventProofpointTAPClicksPermitted",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/ASimEmailEventProofpointTAPClicksPermitted/ASimEmailEventProofpointTAPClicksPermitted.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedASimEmailEventProofpointTAPDelivered",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/ASimEmailEventProofpointTAPDelivered/ASimEmailEventProofpointTAPDelivered.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedimEmailEvent",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/imEmailEvent/imEmailEvent.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedvimEmailEventEmpty",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/vimEmailEventEmpty/vimEmailEventEmpty.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedvimEmailEventMicrosoftDefenderOffice365",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/vimEmailEventMicrosoftDefenderOffice365/vimEmailEventMicrosoftDefenderOffice365.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedvimEmailEventProofpointPODMailLog",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/vimEmailEventProofpointPODMailLog/vimEmailEventProofpointPODMailLog.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedvimEmailEventProofpointPODMessage",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/vimEmailEventProofpointPODMessage/vimEmailEventProofpointPODMessage.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedvimEmailEventProofpointTAPBlocked",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/vimEmailEventProofpointTAPBlocked/vimEmailEventProofpointTAPBlocked.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedvimEmailEventProofpointTAPClicksPermitted",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/vimEmailEventProofpointTAPClicksPermitted/vimEmailEventProofpointTAPClicksPermitted.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "linkedvimEmailEventProofpointTAPDelivered",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Parsers/ASimEmailEvent/ARM/vimEmailEventProofpointTAPDelivered/vimEmailEventProofpointTAPDelivered.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "Workspace": {
+            "value": "[parameters('Workspace')]"
+          },
+          "WorkspaceRegion": {
+            "value": "[parameters('WorkspaceRegion')]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {}
+}
